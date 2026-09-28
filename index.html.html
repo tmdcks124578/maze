@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>미로 거리 지도</title>
+
+<style>
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    background: #0b1220;
+    color: #eef4ff;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+
+  main {
+    max-width: 1400px;
+    margin: auto;
+    padding: 24px 16px 40px;
+  }
+
+  h1 {
+    margin: 0 0 10px;
+    font-size: 26px;
+  }
+
+  .description,
+  .help {
+    color: #b5c5dd;
+    line-height: 1.7;
+  }
+
+  .panel {
+    margin-top: 18px;
+    padding: 16px;
+    background: #142034;
+    border: 1px solid #33465f;
+    border-radius: 12px;
+  }
+
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  label {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  input,
+  select,
+  button {
+    padding: 9px 11px;
+    border: 1px solid #496080;
+    border-radius: 7px;
+    background: #20314c;
+    color: #eef4ff;
+    font: inherit;
+  }
+
+  input {
+    width: 75px;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:hover {
+    background: #30496e;
+  }
+
+  #generateBtn {
+    background: #2456ad;
+  }
+
+  #distanceBtn[aria-pressed="true"] {
+    background: #155269;
+    border-color: #67e8f9;
+  }
+
+  #heuristicBtn[aria-pressed="true"] {
+    background: #62364e;
+    border-color: #f472b6;
+  }
+
+  :focus-visible {
+    outline: 3px solid #60a5fa;
+    outline-offset: 2px;
+  }
+
+  #message {
+    min-height: 28px;
+    color: #bfdbfe;
+    line-height: 1.6;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin: 10px 0;
+    color: #b5c5dd;
+    font-size: 14px;
+  }
+
+  .scroll {
+    overflow: auto;
+    max-height: 75vh;
+    margin-top: 12px;
+    border: 1px solid #33465f;
+    border-radius: 8px;
+    background: #0d1728;
+  }
+
+  canvas {
+    display: block;
+  }
+
+  .help {
+    margin-bottom: 0;
+    font-size: 14px;
+  }
+
+  details {
+    margin-top: 18px;
+  }
+
+  summary {
+    cursor: pointer;
+  }
+
+  .table-scroll {
+    overflow: auto;
+    max-height: 350px;
+    margin-top: 12px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    white-space: nowrap;
+    font-size: 14px;
+  }
+
+  th,
+  td {
+    padding: 10px;
+    border: 1px solid #33465f;
+    text-align: left;
+  }
+
+  th {
+    position: sticky;
+    top: 0;
+    background: #20314c;
+  }
+
+  @media (max-width: 640px) {
+    main {
+      padding: 18px 10px 30px;
+    }
+
+    h1 {
+      font-size: 23px;
+    }
+  }
+</style>
+</head>
+
+<body>
+<main>
+  <h1>미로 거리 지도</h1>
+
+  <div class="description">
+    이동하지 않고 미로 전체의 구간 거리와 휴리스틱을 확인합니다.<br>
+    출발과 도착은 서로 다른 막다른 길에 배치됩니다.
+  </div>
+
+  <section class="panel">
+    <div class="row">
+      <label>
+        행
+        <input
+          id="rows"
+          type="number"
+          min="2"
+          max="40"
+          value="8"
+        >
+      </label>
+
+      <label>
+        열
+        <input
+          id="cols"
+          type="number"
+          min="2"
+          max="40"
+          value="12"
+        >
+      </label>
+
+      <label>
+        셀 크기
+        <select id="cellSize">
+          <option value="24">24px</option>
+          <option value="32">32px</option>
+          <option value="40">40px</option>
+          <option value="48">48px</option>
+          <option value="64">64px</option>
+          <option value="80" selected>80px — 권장</option>
+          <option value="96">96px</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="row">
+      <button id="generateBtn" type="button">
+        미로 생성
+      </button>
+
+      <button
+        id="distanceBtn"
+        type="button"
+        aria-pressed="false"
+      >
+        실제 이동거리 표시
+      </button>
+
+      <button
+        id="heuristicBtn"
+        type="button"
+        aria-pressed="false"
+      >
+        휴리스틱 표시
+      </button>
+
+      <button id="clearBtn" type="button">
+        표시 초기화
+      </button>
+    </div>
+
+    <div class="row">
+      <label>
+        미로 클릭 동작
+        <select id="clickMode">
+          <option value="inspect">지점 정보 확인</option>
+          <option value="start">출발 지정 — 막다른 길만</option>
+          <option value="goal">도착 지정 — 막다른 길만</option>
+        </select>
+      </label>
+    </div>
+
+    <div
+      id="message"
+      role="status"
+      aria-live="polite"
+    ></div>
+
+    <div class="legend">
+      <span style="color:#34d399">출발: 시작 위치</span>
+      <span style="color:#f472b6">도착: 목적지</span>
+      <span style="color:#a5f3fc">
+        화살표 + 숫자: 방향별 실제 이동거리
+      </span>
+      <span style="color:#f9a8d4">
+        ( 숫자 ): 도착까지의 휴리스틱 — 맨해튼 거리
+      </span>
+    </div>
+
+    <div class="scroll">
+      <canvas
+        id="maze"
+        aria-label="출발과 도착, 방향별 실제 이동거리 및 휴리스틱을 표시하는 미로. 상세 값은 아래 지점별 거리 표에서 확인할 수 있습니다."
+      ></canvas>
+    </div>
+
+    <p class="help">
+      실제 이동거리는 각 지점에서 다음 갈림길 또는 막다른 길까지의
+      셀 이동 횟수이며, 출발부터의 누적 거리가 아닙니다.<br>
+      화살표는 해당 지점에서 처음 출발하는 방향입니다.
+      꺾인 통로도 실제 경로를 따라 계산합니다.<br>
+      휴리스틱은 각 지점과 도착 사이의 행 차이와 열 차이를 더한 값입니다.<br>
+      작은 셀에서 글씨가 작으면 셀 크기를 키우거나 아래 표를 확인하세요.
+    </p>
+
+    <details>
+      <summary>지점별 거리 표</summary>
+
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>좌표 (행, 열)</th>
+              <th>방향별 실제 이동거리</th>
+              <th>도착까지의 휴리스틱</th>
+            </tr>
+          </thead>
+
+          <tbody id="nodeTable"></tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+const $ = id => document.getElementById(id);
+
+const canvas = $("maze");
+const ctx = canvas.getContext("2d");
+
+// 열린 통로를 비트로 저장합니다.
+// 위: 1, 오른쪽: 2, 아래: 4, 왼쪽: 8
+const DIRS = [
+  {
+    dr: -1,
+    dc: 0,
+    bit: 1,
+    opposite: 4,
+    arrow: "↑",
+    color: "#93c5fd"
+  },
+  {
+    dr: 0,
+    dc: 1,
+    bit: 2,
+    opposite: 8,
+    arrow: "→",
+    color: "#6ee7b7"
+  },
+  {
+    dr: 1,
+    dc: 0,
+    bit: 4,
+    opposite: 1,
+    arrow: "↓",
+    color: "#d8b4fe"
+  },
+  {
+    dr: 0,
+    dc: -1,
+    bit: 8,
+    opposite: 2,
+    arrow: "←",
+    color: "#fdba74"
+  }
+];
+
+const state = {
+  rows: 8,
+  cols: 12,
+  size: 80,
+
+  cells: [],
+  deadEnds: [],
+
+  start: null,
+  goal: null,
+
+  // 갈림길 및 막다른 길의 계산 데이터.
+  // 해당 지점을 나타내는 점이나 배경 강조는 그리지 않습니다.
+  nodes: [],
+
+  showDistance: false,
+  showHeuristic: false
+};
+
+const PAD = 14;
+const HEADER = 68;
+
+let viewWidth = 0;
+let viewHeight = 0;
+
+function same(a, b) {
+  return a.r === b.r && a.c === b.c;
+}
+
+function copy(cell) {
+  return {
+    r: cell.r,
+    c: cell.c
+  };
+}
+
+function key(cell) {
+  return cell.r * state.cols + cell.c;
+}
+
+function inside(r, c) {
+  return (
+    r >= 0 &&
+    r < state.rows &&
+    c >= 0 &&
+    c < state.cols
+  );
+}
+
+function randomItem(items) {
+  return items[Math.floor(Math.random() * items.length)];
+}
+
+function message(text) {
+  $("message").textContent = text;
+}
+
+function coord(cell) {
+  return `(${cell.r + 1}, ${cell.c + 1})`;
+}
+
+function pointName(cell) {
+  if (same(cell, state.start)) {
+    return `${coord(cell)} 출발`;
+  }
+
+  if (same(cell, state.goal)) {
+    return `${coord(cell)} 도착`;
+  }
+
+  return coord(cell);
+}
+
+function formatHeuristic(value) {
+  return `( ${value} )`;
+}
+
+// 벽을 통과하지 않고 이동 가능한 이웃만 반환합니다.
+function neighbors(cell) {
+  const result = [];
+  const mask = state.cells[cell.r][cell.c];
+
+  DIRS.forEach((dir, index) => {
+    const r = cell.r + dir.dr;
+    const c = cell.c + dir.dc;
+
+    if (
+      inside(r, c) &&
+      (mask & dir.bit) !== 0 &&
+      (state.cells[r][c] & dir.opposite) !== 0
+    ) {
+      result.push({
+        r,
+        c,
+        dir: index
+      });
+    }
+  });
+
+  return result;
+}
+
+function isDeadEnd(cell) {
+  return neighbors(cell).length === 1;
+}
+
+function readDimension(id, fallback) {
+  const input = $(id);
+
+  const value = input.value.trim() === ""
+    ? fallback
+    : Number(input.value);
+
+  const normalized = Number.isFinite(value)
+    ? Math.max(2, Math.min(40, Math.trunc(value)))
+    : fallback;
+
+  input.value = normalized;
+
+  return normalized;
+}
+
+// 반복형 DFS로 모든 셀이 연결되고 순환이 없는 미로를 생성합니다.
+function generateMaze() {
+  state.rows = readDimension("rows", state.rows);
+  state.cols = readDimension("cols", state.cols);
+  state.size = Number($("cellSize").value);
+
+  state.cells = Array.from(
+    { length: state.rows },
+    () => Array(state.cols).fill(0)
+  );
+
+  const visited = Array.from(
+    { length: state.rows },
+    () => Array(state.cols).fill(false)
+  );
+
+  const first = {
+    r: Math.floor(Math.random() * state.rows),
+    c: Math.floor(Math.random() * state.cols)
+  };
+
+  const stack = [first];
+  visited[first.r][first.c] = true;
+
+  while (stack.length > 0) {
+    const current = stack[stack.length - 1];
+    const candidates = [];
+
+    DIRS.forEach((dir, index) => {
+      const r = current.r + dir.dr;
+      const c = current.c + dir.dc;
+
+      if (inside(r, c) && !visited[r][c]) {
+        candidates.push({
+          r,
+          c,
+          dir: index
+        });
+      }
+    });
+
+    if (candidates.length === 0) {
+      stack.pop();
+      continue;
+    }
+
+    const next = randomItem(candidates);
+    const dir = DIRS[next.dir];
+
+    state.cells[current.r][current.c] |= dir.bit;
+    state.cells[next.r][next.c] |= dir.opposite;
+
+    visited[next.r][next.c] = true;
+    stack.push(copy(next));
+  }
+
+  state.deadEnds = [];
+
+  for (let r = 0; r < state.rows; r++) {
+    for (let c = 0; c < state.cols; c++) {
+      if (isDeadEnd({ r, c })) {
+        state.deadEnds.push({ r, c });
+      }
+    }
+  }
+
+  if (state.deadEnds.length < 2) {
+    throw new Error(
+      "출발과 도착을 배치하려면 서로 다른 막다른 길이 2개 이상 필요합니다."
+    );
+  }
+
+  state.start = copy(randomItem(state.deadEnds));
+
+  const goalCandidates = state.deadEnds.filter(
+    cell => !same(cell, state.start)
+  );
+
+  state.goal = copy(randomItem(goalCandidates));
+
+  resizeCanvas();
+  update();
+
+  message(
+    `미로 생성 완료 · ${state.rows}행 × ${state.cols}열 · ` +
+    `출발 ${coord(state.start)} / 도착 ${coord(state.goal)}`
+  );
+}
+
+// 출발에서 연결된 모든 셀을 탐색합니다.
+// 연결 방향이 2개인 중간 통로는 계산 지점에서 제외합니다.
+function collectNodesFromStart() {
+  const queue = [copy(state.start)];
+  const visited = new Set([key(state.start)]);
+  const nodes = [];
+
+  for (let head = 0; head < queue.length; head++) {
+    const current = queue[head];
+    const exits = neighbors(current);
+
+    if (exits.length === 1 || exits.length >= 3) {
+      nodes.push(copy(current));
+    }
+
+    for (const next of exits) {
+      if (!visited.has(key(next))) {
+        visited.add(key(next));
+        queue.push(copy(next));
+      }
+    }
+  }
+
+  return nodes;
+}
+
+// 한 지점에서 특정 방향으로 출발하여 다음 갈림길 또는
+// 막다른 길까지의 실제 셀 이동 횟수를 계산합니다.
+function traceCorridor(origin, first) {
+  let previous = copy(origin);
+  let current = copy(first);
+
+  // 첫 이웃 셀로 한 번 이동한 상태입니다.
+  let distance = 1;
+
+  const visited = new Set([key(origin)]);
+
+  while (true) {
+    if (visited.has(key(current))) {
+      throw new Error("통로 추적 중 순환이 감지되었습니다.");
+    }
+
+    visited.add(key(current));
+
+    const exits = neighbors(current);
+
+    if (exits.length === 1 || exits.length >= 3) {
+      return {
+        dir: first.dir,
+        distance,
+        end: copy(current)
+      };
+    }
+
+    if (exits.length !== 2) {
+      throw new Error("유효하지 않은 통로입니다.");
+    }
+
+    const next = exits.find(
+      cell => !same(cell, previous)
+    );
+
+    if (!next) {
+      throw new Error("다음 통로를 찾을 수 없습니다.");
+    }
+
+    previous = current;
+    current = copy(next);
+    distance++;
+  }
+}
+
+function recalculateAllNodes() {
+  state.nodes = collectNodesFromStart().map(cell => ({
+    ...cell,
+
+    // 되돌아가는 방향을 포함하여 모든 열린 방향을 계산합니다.
+    distances: neighbors(cell).map(first =>
+      traceCorridor(cell, first)
+    ),
+
+    // 맨해튼 휴리스틱: 벽과 우회 경로를 고려하지 않습니다.
+    heuristic:
+      Math.abs(cell.r - state.goal.r) +
+      Math.abs(cell.c - state.goal.c)
+  }));
+}
+
+function update() {
+  recalculateAllNodes();
+
+  $("distanceBtn").setAttribute(
+    "aria-pressed",
+    String(state.showDistance)
+  );
+
+  $("heuristicBtn").setAttribute(
+    "aria-pressed",
+    String(state.showHeuristic)
+  );
+
+  renderTable();
+  draw();
+}
+
+function resizeCanvas() {
+  viewWidth = Math.max(
+    380,
+    PAD * 2 + state.cols * state.size
+  );
+
+  viewHeight =
+    HEADER + PAD * 2 + state.rows * state.size;
+
+  // 큰 미로에서 캔버스 메모리 사용량을 제한합니다.
+  const preferredDpr = Math.min(
+    window.devicePixelRatio || 1,
+    2
+  );
+
+  const pixelBudget = 16000000;
+
+  const dpr = Math.min(
+    preferredDpr,
+    Math.sqrt(pixelBudget / (viewWidth * viewHeight))
+  );
+
+  canvas.width = Math.round(viewWidth * dpr);
+  canvas.height = Math.round(viewHeight * dpr);
+
+  canvas.style.width = `${viewWidth}px`;
+  canvas.style.height = `${viewHeight}px`;
+
+  ctx.setTransform(
+    canvas.width / viewWidth,
+    0,
+    0,
+    canvas.height / viewHeight,
+    0,
+    0
+  );
+}
+
+function center(cell) {
+  return {
+    x: PAD + (cell.c + 0.5) * state.size,
+    y: HEADER + PAD + (cell.r + 0.5) * state.size
+  };
+}
+
+function fillCell(cell, color) {
+  const s = state.size;
+
+  ctx.fillStyle = color;
+
+  ctx.fillRect(
+    PAD + cell.c * s + 2,
+    HEADER + PAD + cell.r * s + 2,
+    s - 4,
+    s - 4
+  );
+}
+
+// 라벨이 지정된 폭 안에 들어가도록 글자 크기를 조절합니다.
+function label(text, x, y, color, maxWidth) {
+  ctx.save();
+
+  let fontSize = Math.min(13, state.size * 0.16);
+
+  ctx.font =
+    `bold ${fontSize}px system-ui, sans-serif`;
+
+  const available = Math.max(1, maxWidth - 4);
+  const measured = ctx.measureText(text).width;
+
+  if (measured > available) {
+    fontSize *= available / measured;
+
+    ctx.font =
+      `bold ${fontSize}px system-ui, sans-serif`;
+  }
+
+  const width = ctx.measureText(text).width + 4;
+  const height = fontSize + 4;
+
+  ctx.fillStyle = "#0b1220";
+
+  ctx.fillRect(
+    x - width / 2,
+    y - height / 2,
+    width,
+    height
+  );
+
+  ctx.fillStyle = color;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, x, y);
+
+  ctx.restore();
+}
+
+function draw() {
+  ctx.clearRect(0, 0, viewWidth, viewHeight);
+
+  ctx.fillStyle = "#0d1728";
+  ctx.fillRect(0, 0, viewWidth, viewHeight);
+
+  // 캔버스 상단의 표시 상태.
+  ctx.font = "13px system-ui, sans-serif";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+
+  ctx.fillStyle = "#a5f3fc";
+  ctx.fillText(
+    `실제 이동거리: ${
+      state.showDistance ? "전체 지점 표시" : "숨김"
+    }`,
+    PAD,
+    22
+  );
+
+  ctx.fillStyle = "#f9a8d4";
+  ctx.fillText(
+    `휴리스틱: ${
+      state.showHeuristic
+        ? "각 지점 → 도착 · ( 숫자 )"
+        : "숨김"
+    }`,
+    PAD,
+    46
+  );
+
+  // 출발과 도착만 배경을 강조합니다.
+  fillCell(state.start, "#154438");
+  fillCell(state.goal, "#48263f");
+
+  const s = state.size;
+
+  // 벽 그리기.
+  ctx.strokeStyle = "#9fb2cf";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+
+  for (let r = 0; r < state.rows; r++) {
+    for (let c = 0; c < state.cols; c++) {
+      const x = PAD + c * s;
+      const y = HEADER + PAD + r * s;
+
+      const mask = state.cells[r][c];
+
+      if (!(mask & 1)) {
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + s, y);
+      }
+
+      if (!(mask & 8)) {
+        ctx.moveTo(x, y);
+        ctx.lineTo(x, y + s);
+      }
+
+      if (r === state.rows - 1 && !(mask & 4)) {
+        ctx.moveTo(x, y + s);
+        ctx.lineTo(x + s, y + s);
+      }
+
+      if (c === state.cols - 1 && !(mask & 2)) {
+        ctx.moveTo(x + s, y);
+        ctx.lineTo(x + s, y + s);
+      }
+    }
+  }
+
+  ctx.stroke();
+
+  for (const node of state.nodes) {
+    const p = center(node);
+
+    const isStart = same(node, state.start);
+    const isGoal = same(node, state.goal);
+    const isEndpoint = isStart || isGoal;
+
+    // 출발·도착 글자를 가운데 정렬합니다.
+    if (isEndpoint) {
+      ctx.save();
+
+      ctx.fillStyle = isStart
+        ? "#34d399"
+        : "#f472b6";
+
+      const fontSize = Math.min(20, s * 0.23);
+
+      ctx.font =
+        `bold ${fontSize}px system-ui, sans-serif`;
+
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      // 휴리스틱 표시 시 제목을 조금 위로 옮겨 두 줄로 배치합니다.
+      const titleY = state.showHeuristic
+        ? p.y - s * 0.12
+        : p.y;
+
+      ctx.fillText(
+        isStart ? "출발" : "도착",
+        p.x,
+        titleY,
+        s * 0.48
+      );
+
+      ctx.restore();
+    }
+
+    // 모든 휴리스틱 점수는 "( 숫자 )" 형식입니다.
+    if (state.showHeuristic) {
+      // 출발·도착은 글자 아래, 나머지 지점은 셀 중앙에 표시합니다.
+      const heuristicY = isEndpoint
+        ? p.y + s * 0.14
+        : p.y;
+
+      label(
+        formatHeuristic(node.heuristic),
+        p.x,
+        heuristicY,
+        "#f9a8d4",
+        s * 0.48
+      );
+    }
+
+    // 갈림길과 막다른 길의 점 표시는 그리지 않습니다.
+
+    if (state.showDistance) {
+      for (const item of node.distances) {
+        const dir = DIRS[item.dir];
+
+        let x = p.x;
+        let y = p.y;
+        let maxWidth = s * 0.45;
+
+        // 중앙의 출발·도착 및 휴리스틱과 구분되도록
+        // 실제 이동거리는 셀 가장자리 쪽에 배치합니다.
+        if (item.dir === 0) {
+          y -= s * 0.36;
+        } else if (item.dir === 2) {
+          y += s * 0.36;
+        } else {
+          x += dir.dc * s * 0.35;
+          maxWidth = s * 0.27;
+        }
+
+        label(
+          `${dir.arrow}${item.distance}`,
+          x,
+          y,
+          dir.color,
+          maxWidth
+        );
+      }
+    }
+  }
+}
+
+function distanceDescription(node) {
+  return node.distances.map(item =>
+    `${DIRS[item.dir].arrow} ${item.distance}칸 → ${coord(item.end)}`
+  ).join(" / ");
+}
+
+function renderTable() {
+  const tbody = $("nodeTable");
+  tbody.replaceChildren();
+
+  const sorted = [...state.nodes].sort(
+    (a, b) => a.r - b.r || a.c - b.c
+  );
+
+  const fragment = document.createDocumentFragment();
+
+  for (const node of sorted) {
+    const tr = document.createElement("tr");
+
+    const values = [
+      pointName(node),
+
+      state.showDistance
+        ? distanceDescription(node)
+        : "숨김",
+
+      state.showHeuristic
+        ? formatHeuristic(node.heuristic)
+        : "숨김"
+    ];
+
+    for (const value of values) {
+      const td = document.createElement("td");
+      td.textContent = value;
+      tr.appendChild(td);
+    }
+
+    fragment.appendChild(tr);
+  }
+
+  tbody.appendChild(fragment);
+}
+
+// 클릭은 정보 확인과 출발·도착 지정에만 사용합니다.
+// 현재 위치 이동 기능은 없습니다.
+canvas.addEventListener("click", event => {
+  const rect = canvas.getBoundingClientRect();
+
+  const x =
+    (event.clientX - rect.left) *
+    viewWidth / rect.width;
+
+  const y =
+    (event.clientY - rect.top) *
+    viewHeight / rect.height;
+
+  const c = Math.floor(
+    (x - PAD) / state.size
+  );
+
+  const r = Math.floor(
+    (y - HEADER - PAD) / state.size
+  );
+
+  if (!inside(r, c)) {
+    return;
+  }
+
+  const cell = { r, c };
+  const mode = $("clickMode").value;
+
+  if (mode === "start" || mode === "goal") {
+    if (!isDeadEnd(cell)) {
+      message(
+        "출발과 도착은 이동 가능한 방향이 하나인 막다른 길에만 지정할 수 있습니다."
+      );
+      return;
+    }
+
+    const other = mode === "start"
+      ? state.goal
+      : state.start;
+
+    if (same(cell, other)) {
+      message(
+        "출발과 도착은 서로 다른 위치여야 합니다."
+      );
+      return;
+    }
+
+    if (mode === "start") {
+      state.start = copy(cell);
+    } else {
+      state.goal = copy(cell);
+    }
+
+    update();
+
+    message(
+      `${mode === "start" ? "출발" : "도착"}을 ` +
+      `${coord(cell)}로 변경했습니다. ` +
+      "전체 지점의 값을 다시 계산했습니다."
+    );
+
+    return;
+  }
+
+  const node = state.nodes.find(
+    item => same(item, cell)
+  );
+
+  if (!node) {
+    message(
+      `${coord(cell)}은 중간 통로입니다. ` +
+      "이 셀에서는 거리 계산을 멈추지 않고 다음 갈림길 또는 막다른 길까지 이어서 계산합니다."
+    );
+    return;
+  }
+
+  const parts = [pointName(node)];
+
+  if (state.showDistance) {
+    parts.push(distanceDescription(node));
+  }
+
+  if (state.showHeuristic) {
+    parts.push(
+      `도착까지의 휴리스틱 ${formatHeuristic(node.heuristic)}`
+    );
+  }
+
+  if (!state.showDistance && !state.showHeuristic) {
+    parts.push(
+      "표시 버튼을 누르면 전체 지점의 값을 확인할 수 있습니다."
+    );
+  }
+
+  message(parts.join(" · "));
+});
+
+$("generateBtn").addEventListener(
+  "click",
+  generateMaze
+);
+
+$("distanceBtn").addEventListener("click", () => {
+  state.showDistance = !state.showDistance;
+  update();
+
+  message(
+    state.showDistance
+      ? "전체 지점의 방향별 실제 이동거리를 표시했습니다."
+      : "실제 이동거리 표시를 숨겼습니다."
+  );
+});
+
+$("heuristicBtn").addEventListener("click", () => {
+  state.showHeuristic = !state.showHeuristic;
+  update();
+
+  message(
+    state.showHeuristic
+      ? "각 지점의 휴리스틱을 ( 숫자 ) 형식으로 표시했습니다."
+      : "휴리스틱 표시를 숨겼습니다."
+  );
+});
+
+$("clearBtn").addEventListener("click", () => {
+  state.showDistance = false;
+  state.showHeuristic = false;
+
+  update();
+
+  message(
+    "거리 표시를 초기화했습니다. 미로와 출발·도착은 유지됩니다."
+  );
+});
+
+$("rows").addEventListener(
+  "change",
+  generateMaze
+);
+
+$("cols").addEventListener(
+  "change",
+  generateMaze
+);
+
+$("cellSize").addEventListener("change", () => {
+  state.size = Number($("cellSize").value);
+
+  resizeCanvas();
+  update();
+
+  message(
+    "셀 크기를 변경했습니다. 미로 구조와 출발·도착은 유지됩니다."
+  );
+});
+
+$("clickMode").addEventListener("change", () => {
+  const mode = $("clickMode").value;
+
+  if (mode === "inspect") {
+    message(
+      "지점을 클릭하면 정보를 확인합니다. 위치 이동은 하지 않습니다."
+    );
+  } else {
+    message(
+      `${mode === "start" ? "출발" : "도착"}로 사용할 막다른 길을 클릭하세요.`
+    );
+  }
+});
+
+// 최초 실행.
+generateMaze();
+</script>
+</body>
+</html>
